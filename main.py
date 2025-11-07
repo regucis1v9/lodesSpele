@@ -194,8 +194,12 @@ def show_settings_popup():
         pygame.draw.rect(screen,(200,0,0),close_rect)
         x_text=font_small.render("X",True,(0,0,0))
         screen.blit(x_text,x_text.get_rect(center=close_rect.center))
+        screen.blit(scanline_overlay, (0, 0))
+        screen.blit(vignette_overlay, (0, 0))
         pygame.display.flip()
         clock.tick(60)
+        screen.blit(scanline_overlay, (0, 0))
+        screen.blit(vignette_overlay, (0, 0))
 
 def draw_text_with_outline(surf,text,font,color,outline_color,center):
     base=font.render(text,True,color)
