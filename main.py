@@ -9,7 +9,31 @@ pygame.mixer.init()
 screen = pygame.display.set_mode((800, 600))
 pygame.display.set_caption("Six Seven")
 clock = pygame.time.Clock()
+# --- CRT Overlay Definition ---
+def create_scanline_overlay(width, height, line_height=2, spacing=2):
+    overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+    color = (0, 0, 0, 50)  # semi-transparent black
+    y = 0
+    while y < height:
+        pygame.draw.rect(overlay, color, (0, y, width, line_height))
+        y += line_height + spacing
+    return overlay
 
+def create_vignette_overlay(width, height, strength=100):
+    overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+    for y in range(height):
+        for x in range(width):
+            dx = x - width / 2
+            dy = y - height / 2
+            dist = math.sqrt(dx*dx + dy*dy)
+            max_dist = math.sqrt((width/2)**2 + (height/2)**2)
+            alpha = int(strength * (dist / max_dist))
+            overlay.set_at((x, y), (0, 0, 0, min(alpha, 255)))
+    return overlay
+
+# Create the overlays once
+scanline_overlay = create_scanline_overlay(800, 600)
+vignette_overlay = create_vignette_overlay(800, 600)
 # --- Global volume variables ---
 vfx_volume = 1.0
 music_volume = 0.5
@@ -215,7 +239,7 @@ def start_screen():
                     if buttons[hover_index]=="Play": running_start=False
                     elif buttons[hover_index]=="Exit": pygame.quit(); exit()
                     elif buttons[hover_index]=="Settings": show_settings_popup()
-        screen.fill((0,0,0))
+        screen.fill((54,89,74))
         title_font = pygame.font.Font("assets/PressStart2P-Regular.ttf",64)
         draw_text_with_outline(screen,"Six Seven",title_font,(255,255,255),(0,0,0),(400,150))
         font = pygame.font.Font("assets/PressStart2P-Regular.ttf",32)
@@ -228,6 +252,8 @@ def start_screen():
             screen.blit(right_img,right_hand_pos)
         for i,rect in enumerate(button_rects):
             draw_text_with_outline(screen,buttons[i],font,(255,255,255),(0,0,0),rect.center)
+        screen.blit(scanline_overlay, (0, 0))
+        screen.blit(vignette_overlay, (0, 0))
         pygame.display.flip()
 
 # --- Initialize game ---
@@ -324,7 +350,7 @@ while running:
         if lives<=0: game_over=True
 
     # --- Drawing ---
-    screen.fill((0,0,0))
+    screen.fill((54, 89, 74))
     # Inactive hand
     if active_hand==left_hand:
         screen.blit(right_hand_inactive_img,right_hand_inactive_img.get_rect(center=right_hand.center))
@@ -422,6 +448,7 @@ while running:
         pygame.draw.rect(screen,(255,255,255),exit_rect)
         pygame.draw.rect(screen,(255,255,255),settings_rect)
         pygame.draw.rect(screen,(255,255,255),retry_rect)
+
         screen.blit(font_small.render("Exit", True, (0, 0, 0)),
                     font_small.render("Exit", True, (0, 0, 0)).get_rect(center=exit_rect.center))
         screen.blit(font_small.render("Settings", True, (0, 0, 0)),
@@ -433,7 +460,8 @@ while running:
             if retry_rect.collidepoint(mouse_pos): left_hand,right_hand,active_hand=init_game(); game_over=False
             elif exit_rect.collidepoint(mouse_pos): running=False
             elif settings_rect.collidepoint(mouse_pos): show_settings_popup()
-
+    screen.blit(scanline_overlay, (0, 0))
+    screen.blit(vignette_overlay, (0, 0))
     pygame.display.flip()
 
 pygame.mixer.music.stop()
