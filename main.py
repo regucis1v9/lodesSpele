@@ -9,6 +9,16 @@ pygame.mixer.init()
 screen = pygame.display.set_mode((800, 600))
 pygame.display.set_caption("Six Seven")
 clock = pygame.time.Clock()
+chaos_events = []
+chaos_images = []
+chaos_images = []
+chaos_folder = "assets/locmelis"
+for filename in sorted(os.listdir(chaos_folder)):
+    if filename.endswith((".png", ".jpg")):
+        img = pygame.image.load(os.path.join(chaos_folder, filename)).convert_alpha()
+        chaos_images.append(img)
+chaos_img_base = random.choice(chaos_images)
+
 # --- CRT Overlay Definition ---
 def create_scanline_overlay(width, height, line_height=2, spacing=2):
     overlay = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -132,6 +142,7 @@ def init_game():
     combo_status = [False, False]
     return left_hand, right_hand, active_hand
 
+
 def play_damage_animation():
     damage_sound.play()
     overlay = pygame.Surface((800,600), pygame.SRCALPHA)
@@ -144,6 +155,66 @@ def play_damage_animation():
         pygame.display.flip()
         pygame.time.delay(200)
     damage_sound.stop()
+spawn_interval = 0.5
+numbers_weighted = [0,1,2,3,4,5,6,6,7,7,8,9]
+
+# --- Helper functions ---
+def init_game():
+    global numbers, score, multiplier, combo_state, elapsed_time, lives, spawn_timer
+    global immunity, immunity_timer, hand_tilt_angle, combo_status
+    numbers = []
+    score = 0.0
+    multiplier = 1.0
+    combo_state = None
+    elapsed_time = 0
+    lives = 3
+    spawn_timer = 0.0
+    immunity = False
+    immunity_timer = 0
+    hand_tilt_angle = 0.0
+    combo_status = [False, False]
+    return left_hand, right_hand, active_hand
+
+
+def play_damage_animation():
+    damage_sound.play()
+    overlay = pygame.Surface((800,600), pygame.SRCALPHA)
+    overlay.fill((0,0,0,128))
+    current_screen = screen.copy()
+    for img, rect in damage_frames:
+        screen.blit(current_screen,(0,0))
+        screen.blit(img,rect)
+        screen.blit(overlay,(0,0))
+        pygame.display.flip()
+        pygame.time.delay(200)
+    damage_sound.stop()
+
+def start_chaos_event():
+    global chaos_events
+    # pick only numbers that haven't been affected
+    eligible_numbers = [n for n in numbers if not n.get("chaos_affected", False)]
+    if eligible_numbers:
+        n = random.choice(eligible_numbers)
+        n["chaos_affected"] = True  # mark as affected
+
+        # target horizontal position: not too far to avoid crazy jumps
+        x_target = max(30, min(770, n["rect"].x + random.choice([-80, -60, 60, 80])))
+
+        # load chaos character image and scale to number size
+        chaos_img = pygame.image.load("assets/locmelis/locemelis.png").convert_alpha()
+        scale_factor = 3
+        chaos_img = pygame.transform.scale(chaos_img, (n["rect"].width*scale_factor, n["rect"].height*scale_factor))
+
+        chaos_events.append({
+            "number": n,
+            "x_start": n["rect"].x,
+            "x_target": x_target,
+            "progress": 0.0,
+            "speed": 1.0,  # slower, just a small shift
+            "img": chaos_img,
+            "side": random.choice([-1, 1])  # left or right side of number
+        })
+
 
 def show_settings_popup():
     global vfx_volume, music_volume
@@ -311,7 +382,12 @@ while running:
             value=str(random.choice(numbers_weighted))
             text_surface=font_large.render(value,True,(255,255,255))
             rect=text_surface.get_rect(center=(random.randint(30,770),0))
-            numbers.append({"surf":text_surface,"rect":rect,"value":value})
+            numbers.append({"surf":text_surface,"rect":rect,"value":value,"chaos_affected": False})
+
+        chaos_chance = 0.005 + (3 - lives) * 0.02  # base chance, more frequent with fewer lives
+        if random.random() < chaos_chance:
+            start_chaos_event()
+
 
         # Move numbers & collision
         for n in numbers[:]:
@@ -375,6 +451,26 @@ while running:
 
     # Draw numbers
     for n in numbers: screen.blit(n["surf"],n["rect"])
+
+    for ce in chaos_events[:]:
+            n = ce["number"]
+            ce["progress"] += ce["speed"] * dt
+            if ce["progress"] > 1.0:
+                ce["progress"] = 1.0
+
+            # move number horizontally
+            n["rect"].x = int(ce["x_start"] + (ce["x_target"] - ce["x_start"]) * ce["progress"])
+
+            # draw chaos character next to number
+            if ce["side"] == -1:  # left
+                char_rect = ce["img"].get_rect(midright=(n["rect"].left - 2, n["rect"].centery))
+            else:  # right
+                char_rect = ce["img"].get_rect(midleft=(n["rect"].right + 2, n["rect"].centery))
+            screen.blit(ce["img"], char_rect)
+
+            # remove when done
+            if ce["progress"] >= 1.0:
+                chaos_events.remove(ce)
 
     # Draw score
     score_text=font_small.render(f"SCORE: {int(score)}",True,(255,255,255))
